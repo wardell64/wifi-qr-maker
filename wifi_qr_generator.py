@@ -13,6 +13,7 @@ Usage:
 """
 
 import argparse
+import json
 import sys
 from pathlib import Path
 
@@ -31,34 +32,21 @@ from tkinter import ttk, colorchooser, filedialog
 from PIL import ImageTk
 
 
-# ── Colour presets ────────────────────────────────────────────────────────────
-presets = {
-    "Default": {
-        "primary": (27, 79, 138),
-        "secondary": (197, 213, 232),
-    },
-    "University of Oregon": {
-        "primary": (21, 71, 52),
-        "secondary": (253, 210, 62),
-    },
-    "Oregon State University": {
-        "primary": (220, 68, 5),
-        "secondary": (0, 0, 0),
-    },
-    "Portland State University": {
-        "primary": (155, 27, 42),
-        "secondary": (255, 255, 255),
-    },
-    "University of Washington": {
-        "primary": (75, 46, 131),
-        "secondary": (183, 165, 122),
-    },
-    "Washington State University": {
-        "primary": (152, 30, 50),
-        "secondary": (94, 106, 113),
-    },
-    "Custom": {}
-}
+# ── Load colour presets from JSON ─────────────────────────────────────────────
+def _load_presets():
+    presets_file = Path(__file__).parent / "presets.json"
+    if not presets_file.exists():
+        sys.exit(f"Error: presets.json not found at {presets_file}")
+    try:
+        with open(presets_file, "r") as f:
+            data = json.load(f)
+        # Convert lists to tuples for use as RGB values
+        return {name: {k: tuple(v) if isinstance(v, list) else v for k, v in colors.items()} 
+                for name, colors in data.items()}
+    except json.JSONDecodeError as e:
+        sys.exit(f"Error: Invalid JSON in presets.json: {e}")
+
+presets = _load_presets()
 
 
 # ── Font discovery ────────────────────────────────────────────────────────────
@@ -122,8 +110,12 @@ def generate_card(network_name: str, ssid: str, password: str, output_path: str,
         "GRAY_MED": (90, 122, 154),
     }
     full_palette = {**common, **palette}
-    # Calculate text_inverse based on primary color brightness
-    r, g, b = full_palette["primary"]
+    
+    # Get background color, default to white if not specified
+    bg_color = full_palette.get("background", full_palette["WHITE"])
+    
+    # Calculate text_inverse based on secondary color brightness
+    r, g, b = full_palette["secondary"]
     brightness = (r * 299 + g * 587 + b * 114) / 1000
     text_inverse = brightness > 128
     text_on_primary = full_palette["BLACK"] if text_inverse else full_palette["WHITE"]
@@ -132,7 +124,7 @@ def generate_card(network_name: str, ssid: str, password: str, output_path: str,
     W   = int(4 * DPI)   # 1200 px
     H   = int(6 * DPI)   # 1800 px
 
-    img  = Image.new("RGB", (W, H), full_palette["WHITE"])
+    img  = Image.new("RGB", (W, H), bg_color)
     draw = ImageDraw.Draw(img)
 
     # ── Fonts ─────────────────────────────────────────────────────────────────
@@ -153,7 +145,7 @@ def generate_card(network_name: str, ssid: str, password: str, output_path: str,
     cy  = int(0.14 * DPI)
 
     # ── Top accent bar ────────────────────────────────────────────────────────
-    draw.rectangle([(0, 0), (W, int(0.10 * DPI))], fill=full_palette["secondary"])
+    draw.rectangle([(0, 0), (W, int(0.10 * DPI))], fill=full_palette["primary"])
 
     # ── Tag pill ──────────────────────────────────────────────────────────────
     tag_text = "WI-FI NETWORK QR CODE"
@@ -163,7 +155,7 @@ def generate_card(network_name: str, ssid: str, password: str, output_path: str,
     tx = (W - tw - 2 * px) // 2
     pill_height = th + 2*py
     pill_y = cy
-    draw.rectangle([(tx, pill_y), (tx + tw + 2*px, pill_y + pill_height)], fill=full_palette["primary"])
+    draw.rectangle([(tx, pill_y), (tx + tw + 2*px, pill_y + pill_height)], fill=full_palette["secondary"])
     text_y = pill_y + py
     draw.text((tx + px, text_y-5), tag_text, font=fnt_tag, fill=text_on_primary)
     cy += pill_height + int(0.12 * DPI)
@@ -199,9 +191,9 @@ def generate_card(network_name: str, ssid: str, password: str, output_path: str,
         [(qx, cy), (qx+qr_px+2*border, cy+qr_px+2*border)],
         fill=full_palette["primary"],
     )
-    draw.rectangle(                                              # white inset
+    draw.rectangle(                                              # background inset
         [(qx+border, cy+border), (qx+border+qr_px, cy+border+qr_px)],
-        fill=full_palette["WHITE"],
+        fill=bg_color,
     )
     img.paste(qr_img, (qx+border, cy+border))
     cy += qr_px + 2*border + int(0.20 * DPI)
