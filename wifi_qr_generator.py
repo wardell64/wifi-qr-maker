@@ -8,8 +8,8 @@ Requirements:
 
 Usage:
     python wifi_qr_generator.py
-    python wifi_qr_generator.py --title "Guest" --ssid "MyNetwork" --password "MyPass123!"
-    python wifi_qr_generator.py --title "Home" --ssid "MyNet" --password "abc123" --output home.png
+    python wifi_qr_generator.py --name "Guest" --ssid "MyNetwork" --password "MyPass123!"
+    python wifi_qr_generator.py --name "Home" --ssid "MyNet" --password "abc123" --output home.png
 """
 
 import argparse
@@ -34,58 +34,28 @@ from PIL import ImageTk
 # ── Colour presets ────────────────────────────────────────────────────────────
 presets = {
     "Default": {
-        "MAIN_DARK": (27, 45, 66),
-        "MAIN_MID": (27, 79, 138),
-        "MAIN_LIGHT": (197, 213, 232),
-        "GRAY_LIGHT": (221, 228, 237),
-        "GRAY_MED": (90, 122, 154),
-        "WHITE": (255, 255, 255),
-        "BLACK": (0, 0, 0),
+        "primary": (27, 79, 138),
+        "secondary": (197, 213, 232),
     },
     "University of Oregon": {
-        "MAIN_DARK": (0, 102, 51),
-        "MAIN_MID": (254, 225, 35),
-        "MAIN_LIGHT": (197, 213, 232),
-        "GRAY_LIGHT": (221, 228, 237),
-        "GRAY_MED": (90, 122, 154),
-        "WHITE": (255, 255, 255),
-        "BLACK": (0, 0, 0),
+        "primary": (21, 71, 52),
+        "secondary": (253, 210, 62),
     },
     "Oregon State University": {
-        "MAIN_DARK": (215, 63, 9),
-        "MAIN_MID": (0, 0, 0),
-        "MAIN_LIGHT": (197, 213, 232),
-        "GRAY_LIGHT": (221, 228, 237),
-        "GRAY_MED": (90, 122, 154),
-        "WHITE": (255, 255, 255),
-        "BLACK": (0, 0, 0),
+        "primary": (220, 68, 5),
+        "secondary": (0, 0, 0),
     },
     "Portland State University": {
-        "MAIN_DARK": (155, 28, 44),
-        "MAIN_MID": (255, 255, 255),
-        "MAIN_LIGHT": (197, 213, 232),
-        "GRAY_LIGHT": (221, 228, 237),
-        "GRAY_MED": (90, 122, 154),
-        "WHITE": (255, 255, 255),
-        "BLACK": (0, 0, 0),
+        "primary": (155, 27, 42),
+        "secondary": (255, 255, 255),
     },
     "University of Washington": {
-        "MAIN_DARK": (75, 46, 131),
-        "MAIN_MID": (183, 165, 122),
-        "MAIN_LIGHT": (197, 213, 232),
-        "GRAY_LIGHT": (221, 228, 237),
-        "GRAY_MED": (90, 122, 154),
-        "WHITE": (255, 255, 255),
-        "BLACK": (0, 0, 0),
+        "primary": (75, 46, 131),
+        "secondary": (183, 165, 122),
     },
     "Washington State University": {
-        "MAIN_DARK": (152, 30, 50),
-        "MAIN_MID": (94, 106, 113),
-        "MAIN_LIGHT": (197, 213, 232),
-        "GRAY_LIGHT": (221, 228, 237),
-        "GRAY_MED": (90, 122, 154),
-        "WHITE": (255, 255, 255),
-        "BLACK": (0, 0, 0),
+        "primary": (152, 30, 50),
+        "secondary": (94, 106, 113),
     },
     "Custom": {}
 }
@@ -140,14 +110,29 @@ def make_qr_image(wifi_string: str, size_px: int, quiet: int = 4) -> Image.Image
     return canvas.resize((size_px, size_px), Image.NEAREST)
 
 
-def generate_card(title: str, ssid: str, password: str, output_path: str, palette: dict = None) -> None:
+def generate_card(network_name: str, ssid: str, password: str, output_path: str, palette: dict = None) -> None:
     if palette is None:
         palette = presets["Default"]
+    
+    # Build full palette with common colors
+    common = {
+        "WHITE": (255, 255, 255),
+        "BLACK": (0, 0, 0),
+        "GRAY_LIGHT": (221, 228, 237),
+        "GRAY_MED": (90, 122, 154),
+    }
+    full_palette = {**common, **palette}
+    # Calculate text_inverse based on primary color brightness
+    r, g, b = full_palette["primary"]
+    brightness = (r * 299 + g * 587 + b * 114) / 1000
+    text_inverse = brightness > 128
+    text_on_primary = full_palette["BLACK"] if text_inverse else full_palette["WHITE"]
+    
     DPI = 600
     W   = int(4 * DPI)   # 1200 px
     H   = int(6 * DPI)   # 1800 px
 
-    img  = Image.new("RGB", (W, H), palette["WHITE"])
+    img  = Image.new("RGB", (W, H), full_palette["WHITE"])
     draw = ImageDraw.Draw(img)
 
     # ── Fonts ─────────────────────────────────────────────────────────────────
@@ -168,7 +153,7 @@ def generate_card(title: str, ssid: str, password: str, output_path: str, palett
     cy  = int(0.14 * DPI)
 
     # ── Top accent bar ────────────────────────────────────────────────────────
-    draw.rectangle([(0, 0), (W, int(0.10 * DPI))], fill=palette["MAIN_MID"])
+    draw.rectangle([(0, 0), (W, int(0.10 * DPI))], fill=full_palette["secondary"])
 
     # ── Tag pill ──────────────────────────────────────────────────────────────
     tag_text = "WI-FI NETWORK QR CODE"
@@ -178,22 +163,22 @@ def generate_card(title: str, ssid: str, password: str, output_path: str, palett
     tx = (W - tw - 2 * px) // 2
     pill_height = th + 2*py
     pill_y = cy
-    draw.rectangle([(tx, pill_y), (tx + tw + 2*px, pill_y + pill_height)], fill=palette["MAIN_MID"])
+    draw.rectangle([(tx, pill_y), (tx + tw + 2*px, pill_y + pill_height)], fill=full_palette["primary"])
     text_y = pill_y + py
-    draw.text((tx + px, text_y-5), tag_text, font=fnt_tag, fill=palette["WHITE"])
+    draw.text((tx + px, text_y-5), tag_text, font=fnt_tag, fill=text_on_primary)
     cy += pill_height + int(0.12 * DPI)
 
-    # ── Title ──────────────────────────────────────────────────────────────
-    tb = draw.textbbox((0, 0), title, font=fnt_title)
+    # ── Network Name ──────────────────────────────────────────────────────────────
+    tb = draw.textbbox((0, 0), network_name, font=fnt_title)
     tw, th = tb[2] - tb[0], tb[3] - tb[1]
-    draw.text(((W - tw) // 2, cy), title, font=fnt_title, fill=palette["MAIN_DARK"])
+    draw.text(((W - tw) // 2, cy), network_name, font=fnt_title, fill=full_palette["BLACK"])
     cy += th + int(0.15 * DPI)
 
     # ── Subtitle ──────────────────────────────────────────────────────────────
     sub = "Scan to connect instantly"
     tb  = draw.textbbox((0, 0), sub, font=fnt_sub)
     tw, th = tb[2] - tb[0], tb[3] - tb[1]
-    draw.text(((W - tw) // 2, cy), sub, font=fnt_sub, fill=palette["GRAY_MED"])
+    draw.text(((W - tw) // 2, cy), sub, font=fnt_sub, fill=full_palette["GRAY_MED"])
     cy += th + int(0.35 * DPI)
 
     # ── QR code ───────────────────────────────────────────────────────────────
@@ -208,21 +193,21 @@ def generate_card(title: str, ssid: str, password: str, output_path: str, palett
     draw.rectangle(                                              # drop shadow
         [(qx+shadow, cy+shadow),
          (qx+qr_px+2*border+shadow, cy+qr_px+2*border+shadow)],
-        fill=palette["MAIN_LIGHT"],
+        fill=full_palette["secondary"],
     )
     draw.rectangle(                                              # blue border
         [(qx, cy), (qx+qr_px+2*border, cy+qr_px+2*border)],
-        fill=palette["MAIN_MID"],
+        fill=full_palette["primary"],
     )
     draw.rectangle(                                              # white inset
         [(qx+border, cy+border), (qx+border+qr_px, cy+border+qr_px)],
-        fill=palette["WHITE"],
+        fill=full_palette["WHITE"],
     )
     img.paste(qr_img, (qx+border, cy+border))
     cy += qr_px + 2*border + int(0.20 * DPI)
 
     # ── Divider ───────────────────────────────────────────────────────────────
-    draw.rectangle([(pad, cy), (W-pad, cy+3)], fill=palette["GRAY_LIGHT"])
+    draw.rectangle([(pad, cy), (W-pad, cy+3)], fill=full_palette["GRAY_LIGHT"])
     cy += int(0.12 * DPI)
 
     # ── Info rows ─────────────────────────────────────────────────────────────
@@ -238,20 +223,20 @@ def generate_card(title: str, ssid: str, password: str, output_path: str, palett
         row_h  = max(lh, vh)
 
         draw.text((pad, cy+(row_h-lh)//2),
-                  label.upper(), font=fnt_label, fill=palette["GRAY_MED"])
+                  label.upper(), font=fnt_label, fill=full_palette["GRAY_MED"])
         draw.text((W-pad-(vb[2]-vb[0]), cy+(row_h-vh)//2),
                   value, font=fnt_value,
-                  fill=palette["MAIN_MID"] if highlight else palette["MAIN_DARK"])
+                  fill=full_palette["BLACK"] if highlight else full_palette["GRAY_MED"])
 
         cy += row_h + int(0.08 * DPI)
-        draw.rectangle([(pad, cy), (W-pad, cy+2)], fill=palette["GRAY_LIGHT"])
+        draw.rectangle([(pad, cy), (W-pad, cy+2)], fill=full_palette["GRAY_LIGHT"])
         cy += int(0.08 * DPI)
 
     # ── Footer ────────────────────────────────────────────────────────────────
     footer = "Point your camera at the code above"
     fb = draw.textbbox((0, 0), footer, font=fnt_sub)
     draw.text(((W-(fb[2]-fb[0]))//2, cy+int(0.05*DPI)),
-              footer, font=fnt_sub, fill=palette["MAIN_LIGHT"])
+              footer, font=fnt_sub, fill=full_palette["GRAY_MED"])
 
     # ── Save ──────────────────────────────────────────────────────────────────
     img.save(output_path, dpi=(DPI, DPI))
@@ -260,8 +245,8 @@ def generate_card(title: str, ssid: str, password: str, output_path: str, palett
 
 def custom_colors():
     global current_palette
-    for key in presets["Default"]:
-        color = colorchooser.askcolor(title=f"Choose {key}", color=tuple(current_palette.get(key, presets["Default"][key])))[1]
+    for key in ["primary", "secondary"]:
+        color = colorchooser.askcolor(title=f"Choose {key.title()}", color=tuple(current_palette.get(key, presets["Default"][key])))[1]
         if color:
             current_palette[key] = tuple(int(color[i:i+2], 16) for i in (1,3,5))  # hex to rgb
     preset_var.set("Custom")
@@ -270,7 +255,7 @@ def custom_colors():
 def update_preview():
     try:
         temp_path = "temp_preview.png"
-        generate_card(title_var.get(), ssid_var.get(), password_var.get(), temp_path, current_palette)
+        generate_card(network_name_var.get(), ssid_var.get(), password_var.get(), temp_path, current_palette)
         img = Image.open(temp_path)
         img.thumbnail((300, 450))  # scale down for preview
         photo = ImageTk.PhotoImage(img)
@@ -280,21 +265,22 @@ def update_preview():
         print(e)
 
 def launch_gui():
-    global title_var, ssid_var, password_var, output_var, preset_var, current_palette, preview_label
+    global network_name_var, ssid_var, password_var, output_var, preset_var, current_palette, preview_label, filename_auto
     root = tk.Tk()
     root.title("WiFi QR Card Generator")
 
     # Variables
-    title_var = tk.StringVar(value="Home")
+    network_name_var = tk.StringVar(value="Home")
     ssid_var = tk.StringVar(value="MyNetwork")
     password_var = tk.StringVar(value="MyPass123")
-    output_var = tk.StringVar(value="wifi_qr.png")
+    output_var = tk.StringVar(value="Home_qr.png")
     preset_var = tk.StringVar(value="Default")
     current_palette = presets["Default"].copy()
+    filename_auto = True
 
     # Widgets
-    ttk.Label(root, text="Title:").grid(row=0, column=0, sticky="w")
-    ttk.Entry(root, textvariable=title_var).grid(row=0, column=1, sticky="ew")
+    ttk.Label(root, text="Network Name:").grid(row=0, column=0, sticky="w")
+    ttk.Entry(root, textvariable=network_name_var).grid(row=0, column=1, sticky="ew")
     ttk.Label(root, text="SSID:").grid(row=1, column=0, sticky="w")
     ttk.Entry(root, textvariable=ssid_var).grid(row=1, column=1, sticky="ew")
     ttk.Label(root, text="Password:").grid(row=2, column=0, sticky="w")
@@ -310,7 +296,7 @@ def launch_gui():
         if p != "Custom":
             current_palette.update(presets[p])
         update_preview()
-    preset_var.trace("w", on_preset_change)
+    preset_var.trace_add("write", on_preset_change)
     ttk.Button(root, text="Custom Colors", command=custom_colors).grid(row=4, column=2)
 
     # Preview
@@ -320,15 +306,26 @@ def launch_gui():
     # Bind updates
     def on_change(*args):
         update_preview()
-    title_var.trace("w", on_change)
-    ssid_var.trace("w", on_change)
-    password_var.trace("w", on_change)
+        global filename_auto
+        if filename_auto:
+            name = network_name_var.get().replace(" ", "_")
+            output_var.set(f"{name}_qr.png")
+    network_name_var.trace_add("write", on_change)
+    ssid_var.trace_add("write", on_change)
+    password_var.trace_add("write", on_change)
+
+    def on_output_change(*args):
+        global filename_auto
+        expected = f"{network_name_var.get().replace(' ', '_')}_qr.png"
+        if output_var.get() != expected:
+            filename_auto = False
+    output_var.trace_add("write", on_output_change)
 
     # Initial preview
     update_preview()
 
     # Generate button
-    ttk.Button(root, text="Generate", command=lambda: generate_card(title_var.get(), ssid_var.get(), password_var.get(), output_var.get(), current_palette)).grid(row=6, column=0, columnspan=3)
+    ttk.Button(root, text="Generate", command=lambda: generate_card(network_name_var.get(), ssid_var.get(), password_var.get(), output_var.get(), current_palette)).grid(row=6, column=0, columnspan=3)
 
     root.mainloop()
 
@@ -338,21 +335,21 @@ def cli_main():
     parser = argparse.ArgumentParser(
         description="Generate a print-ready 4x6 WiFi QR card (PNG)."
     )
-    parser.add_argument("--title",    help='Card label, e.g. "Guest" or "Home"')
+    parser.add_argument("--name",    help='Network name, e.g. "Guest" or "Home"')
     parser.add_argument("--ssid",     help="WiFi network name (SSID)")
     parser.add_argument("--password", help="WiFi password")
     parser.add_argument("--output",   default="wifi_qr.png",
                         help="Output filename (default: wifi_qr.png)")
     args = parser.parse_args()
 
-    title    = args.title    or input("Network label (e.g. Guest, Home): ").strip()
-    ssid     = args.ssid     or input("Network name (SSID): ").strip()
+    network_name    = args.name    or input("Network name (e.g. Guest, Home): ").strip()
+    ssid     = args.ssid     or input("SSID: ").strip()
     password = args.password or input("Password: ").strip()
 
-    if not title or not ssid or not password:
-        sys.exit("Error: title, SSID, and password are all required.")
+    if not network_name or not ssid or not password:
+        sys.exit("Error: network name, SSID, and password are all required.")
 
-    generate_card(title, ssid, password, args.output)
+    generate_card(network_name, ssid, password, args.output)
 
 
 if __name__ == "__main__":
