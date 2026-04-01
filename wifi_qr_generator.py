@@ -276,7 +276,7 @@ def launch_gui():
     ttk.Label(root, text="SSID:").grid(row=1, column=0, sticky="w")
     ttk.Entry(root, textvariable=ssid_var).grid(row=1, column=1, sticky="ew")
     ttk.Label(root, text="Password:").grid(row=2, column=0, sticky="w")
-    ttk.Entry(root, textvariable=password_var, show="*").grid(row=2, column=1, sticky="ew")
+    ttk.Entry(root, textvariable=password_var).grid(row=2, column=1, sticky="ew")
     ttk.Label(root, text="Output:").grid(row=3, column=0, sticky="w")
     ttk.Entry(root, textvariable=output_var).grid(row=3, column=1, sticky="ew")
     ttk.Button(root, text="Browse", command=lambda: output_var.set(filedialog.asksaveasfilename(defaultextension=".png", filetypes=[("PNG files", "*.png")]))).grid(row=3, column=2)
