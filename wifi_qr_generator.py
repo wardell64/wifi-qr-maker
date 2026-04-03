@@ -73,6 +73,34 @@ def _first(paths):
     return None
 
 
+def draw_wifi_signal(draw, x: int, y: int, size: int, color: tuple) -> None:
+    """
+    Draw a WiFi signal icon (dot + radiating arcs) at the given position.
+    x, y: center of the icon
+    size: approximate height of the icon
+    color: RGB tuple for the icon color
+    """
+    # Dot at the bottom center
+    dot_radius = max(1, size // 10)
+    dot_gap = max(8, size // 20)  # Gap between dot and first arc
+    dot_y = y + size - dot_radius + dot_gap
+    draw.ellipse(
+        [(x - dot_radius, dot_y - dot_radius), (x + dot_radius, dot_y + dot_radius)],
+        fill=color
+    )
+    
+    # Draw 3 concentric arcs radiating upward
+    arc_width = max(1, size // 12)
+    for arc_num in range(3):
+        radius = size // 3 + arc_num * (size // 4)
+        # Draw arc from 225° to 315° (upward opening arc)
+        bbox = [
+            (x - radius, y + size - radius),
+            (x + radius, y + size + radius)
+        ]
+        draw.arc(bbox, start=225, end=315, fill=color, width=arc_width)
+
+
 def make_qr_image(wifi_string: str, size_px: int, quiet: int = 4) -> Image.Image:
     """
     Render a WiFi QR code as a PIL image using only reportlab's QR matrix.
@@ -147,7 +175,7 @@ def generate_card(network_name: str, ssid: str, password: str, output_path: str,
     # ── Top accent bar ────────────────────────────────────────────────────────
     draw.rectangle([(0, 0), (W, int(0.10 * DPI))], fill=full_palette["primary"])
 
-    # ── Tag pill ──────────────────────────────────────────────────────────────
+    # ── Tag pill ──────────────────────────────────────────────────────────
     tag_text = "WI-FI NETWORK QR CODE"
     tb = draw.textbbox((0, 0), tag_text, font=fnt_tag)
     tw, th = tb[2] - tb[0], tb[3] - tb[1]
@@ -155,9 +183,27 @@ def generate_card(network_name: str, ssid: str, password: str, output_path: str,
     tx = (W - tw - 2 * px) // 2
     pill_height = th + 2*py
     pill_y = cy
+    
+    # WiFi icon size and positioning around the pill
+    wifi_icon_size = int(0.3 * DPI)
+    wifi_gap = int(0.3 * DPI)
+    
+    # Calculate pill center Y for icon vertical alignment
+    wifi_center_y = cy
+    
+    # Draw left WiFi icon
+    left_wifi_x = tx - wifi_gap - wifi_icon_size // 2
+    draw_wifi_signal(draw, left_wifi_x, wifi_center_y, wifi_icon_size, full_palette["primary"])
+    
+    # Draw pill
     draw.rectangle([(tx, pill_y), (tx + tw + 2*px, pill_y + pill_height)], fill=full_palette["secondary"])
     text_y = pill_y + py
     draw.text((tx + px, text_y-5), tag_text, font=fnt_tag, fill=text_on_primary)
+    
+    # Draw right WiFi icon
+    right_wifi_x = tx + tw + 2*px + wifi_gap + wifi_icon_size // 2
+    draw_wifi_signal(draw, right_wifi_x, wifi_center_y, wifi_icon_size, full_palette["primary"])
+    
     cy += pill_height + int(0.12 * DPI)
 
     # ── Network Name ──────────────────────────────────────────────────────────────
@@ -171,11 +217,11 @@ def generate_card(network_name: str, ssid: str, password: str, output_path: str,
     tb  = draw.textbbox((0, 0), sub, font=fnt_sub)
     tw, th = tb[2] - tb[0], tb[3] - tb[1]
     draw.text(((W - tw) // 2, cy), sub, font=fnt_sub, fill=full_palette["GRAY_MED"])
-    cy += th + int(0.35 * DPI)
+    cy += th + int(0.15 * DPI)
 
     # ── QR code ───────────────────────────────────────────────────────────────
     wifi_string = f"WIFI:T:WPA;S:{ssid};P:{password};H:false;;"
-    qr_px  = int(2.80 * DPI)
+    qr_px  = int(3.2 * DPI)
     qr_img = make_qr_image(wifi_string, qr_px)
 
     border = int(0.07 * DPI)
@@ -196,7 +242,13 @@ def generate_card(network_name: str, ssid: str, password: str, output_path: str,
         fill=bg_color,
     )
     img.paste(qr_img, (qx+border, cy+border))
-    cy += qr_px + 2*border + int(0.20 * DPI)
+    cy += qr_px + 2*border + int(0.15 * DPI)
+
+    # ── Footer ────────────────────────────────────────────────────────────────
+    footer = "Point your camera at the code above"
+    fb = draw.textbbox((0, 0), footer, font=fnt_sub)
+    draw.text(((W-(fb[2]-fb[0]))//2, cy+int(0.05*DPI)), footer, font=fnt_sub, fill=full_palette["GRAY_MED"])
+    cy += (fb[3]-fb[1]) + int(0.20 * DPI)
 
     # ── Divider ───────────────────────────────────────────────────────────────
     draw.rectangle([(pad, cy), (W-pad, cy+3)], fill=full_palette["GRAY_LIGHT"])
@@ -206,7 +258,6 @@ def generate_card(network_name: str, ssid: str, password: str, output_path: str,
     rows = [
         ("Network",  ssid,       True),
         ("Password", password,   False),
-        ("Security", "WPA/WPA2", False),
     ]
     for label, value, highlight in rows:
         lb = draw.textbbox((0, 0), label.upper(), font=fnt_label)
@@ -224,11 +275,6 @@ def generate_card(network_name: str, ssid: str, password: str, output_path: str,
         draw.rectangle([(pad, cy), (W-pad, cy+2)], fill=full_palette["GRAY_LIGHT"])
         cy += int(0.08 * DPI)
 
-    # ── Footer ────────────────────────────────────────────────────────────────
-    footer = "Point your camera at the code above"
-    fb = draw.textbbox((0, 0), footer, font=fnt_sub)
-    draw.text(((W-(fb[2]-fb[0]))//2, cy+int(0.05*DPI)),
-              footer, font=fnt_sub, fill=full_palette["GRAY_MED"])
 
     # ── Save ──────────────────────────────────────────────────────────────────
     img.save(output_path, dpi=(DPI, DPI))
@@ -249,7 +295,9 @@ def update_preview():
         temp_path = "temp_preview.png"
         generate_card(network_name_var.get(), ssid_var.get(), password_var.get(), temp_path, current_palette)
         img = Image.open(temp_path)
-        img.thumbnail((300, 450))  # scale down for preview
+        preview_x = 400
+        preview_y = preview_x * 1.5
+        img.thumbnail((preview_x, preview_y))  # scale down for preview
         photo = ImageTk.PhotoImage(img)
         preview_label.config(image=photo)
         preview_label.image = photo  # keep reference
@@ -295,16 +343,13 @@ def launch_gui():
     preview_label = ttk.Label(root)
     preview_label.grid(row=5, column=0, columnspan=3)
 
-    # Bind updates
-    def on_change(*args):
-        update_preview()
+    # Bind filename auto-update (no preview on keystroke)
+    def on_network_name_change(*args):
         global filename_auto
         if filename_auto:
             name = network_name_var.get().replace(" ", "_")
             output_var.set(f"{name}_qr.png")
-    network_name_var.trace_add("write", on_change)
-    ssid_var.trace_add("write", on_change)
-    password_var.trace_add("write", on_change)
+    network_name_var.trace_add("write", on_network_name_change)
 
     def on_output_change(*args):
         global filename_auto
@@ -316,8 +361,9 @@ def launch_gui():
     # Initial preview
     update_preview()
 
-    # Generate button
-    ttk.Button(root, text="Generate", command=lambda: generate_card(network_name_var.get(), ssid_var.get(), password_var.get(), output_var.get(), current_palette)).grid(row=6, column=0, columnspan=3)
+    # Buttons
+    ttk.Button(root, text="Preview", command=update_preview).grid(row=6, column=0, sticky="ew")
+    ttk.Button(root, text="Generate", command=lambda: generate_card(network_name_var.get(), ssid_var.get(), password_var.get(), output_var.get(), current_palette)).grid(row=6, column=1, columnspan=2, sticky="ew")
 
     root.mainloop()
 
